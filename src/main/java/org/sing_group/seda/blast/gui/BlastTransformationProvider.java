@@ -17,7 +17,7 @@ public class BlastTransformationProvider extends AbstractTransformationProvider 
   @Override
   public boolean isValidTransformation() {
     try {
-      if (this.configurationPanel.isStoreAlias() && this.configurationPanel.getAliasFile() == null) {
+      if (this.configurationPanel.isStoreAlias() && !this.configurationPanel.getAliasFile().isPresent()) {
         return false;
       }
 
@@ -42,7 +42,9 @@ public class BlastTransformationProvider extends AbstractTransformationProvider 
 
   private BlastTransformation getBlastTransformation(DatatypeFactory factory) {
     BlastTransformationBuilder builder = new BlastTransformationBuilder(
-      configurationPanel.getBlastType(), configurationPanel.getQueryFile().get()
+      configurationPanel.getBlastType(),
+      configurationPanel.getQueryFile().get(),
+      configurationPanel.getDatabaseQueryMode()
     )
       .withDatatypeFactory(factory)
       .withMaxTargetSeqs(configurationPanel.getMaxTargetSeqs())
@@ -54,8 +56,8 @@ public class BlastTransformationProvider extends AbstractTransformationProvider 
       builder.withDatabasesDirectory(configurationPanel.getDatabasesDirectory());
     }
 
-    if (configurationPanel.isStoreAlias()) {
-      builder.withAliasFileDirectory(configurationPanel.getAliasFile());
+    if (configurationPanel.isStoreAlias() && configurationPanel.getAliasFile().isPresent()) {
+      builder.withAliasFileDirectory(configurationPanel.getAliasFile().get());
     }
 
     if (configurationPanel.isExtractOnlyHitRegions()) {
@@ -72,7 +74,7 @@ public class BlastTransformationProvider extends AbstractTransformationProvider 
       BlastTransformationConfigurationChangeType.BLAST_PATH_CHANGED, configurationPanel.getBlastPath()
     );
   }
-  
+
   public void storeDatabasesChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.STORE_DATABASES_CHANGED, configurationPanel.isStoreDatabases()
@@ -103,39 +105,45 @@ public class BlastTransformationProvider extends AbstractTransformationProvider 
     );
   }
 
+  public void databaseQueryModeChanged() {
+    fireTransformationsConfigurationModelEvent(
+      BlastTransformationConfigurationChangeType.DATABASE_QUERY_MODE_CHANGED, configurationPanel.getDatabaseQueryMode()
+    );
+  }
+
   public void queryFileChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.QUERY_FILE_CHANGED, configurationPanel.getQueryFile()
-    ); 
+    );
   }
 
   public void eValueChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.E_VALUE_CHANGED, configurationPanel.getEvalue()
-    ); 
+    );
   }
-  
+
   public void maxTargetSeqsChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.MAX_TARGET_SEQS_CHANGED, configurationPanel.getMaxTargetSeqs()
-    ); 
+    );
   }
-  
+
   public void blastAdditionalParametersChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.BLAST_ADDITONAL_PARAMETERS_CHANGED, configurationPanel.getBlastAditionalParameters()
-    ); 
+    );
   }
 
   public void extractOnlyHitRegionsChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.EXTRACT_ONLY_HIT_REGIONS_CHANGED, configurationPanel.isExtractOnlyHitRegions()
-    ); 
+    );
   }
 
   public void hitRegionsWindowSizeChanged() {
     fireTransformationsConfigurationModelEvent(
       BlastTransformationConfigurationChangeType.HIT_REGIONS_WINDOW_SIZE_CHANGED, configurationPanel.getHitRegionsWindowSize()
-    ); 
+    );
   }
 }

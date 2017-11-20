@@ -36,11 +36,12 @@ import org.sing_group.gc4s.text.JIntegerTextField;
 import org.sing_group.gc4s.ui.CenteredJPanel;
 import org.sing_group.gc4s.utilities.ExtendedAbstractAction;
 import org.sing_group.gc4s.utilities.builder.JButtonBuilder;
+import org.sing_group.seda.blast.datatype.DatabaseQueryMode;
 import org.sing_group.seda.blast.datatype.SequenceType;
 import org.sing_group.seda.blast.datatype.blast.BlastType;
 import org.sing_group.seda.blast.transformation.dataset.BinaryCheckException;
-import org.sing_group.seda.blast.transformation.dataset.BlastTransformation;
 import org.sing_group.seda.blast.transformation.dataset.BlastBinariesChecker;
+import org.sing_group.seda.blast.transformation.dataset.BlastTransformation;
 import org.sing_group.seda.core.SedaContext;
 import org.sing_group.seda.core.SedaContextEvent;
 import org.sing_group.seda.core.SedaContextEvent.SedaContextEventType;
@@ -53,6 +54,8 @@ public class BlastTransformationConfigurationPanel extends JPanel {
     "The directory that contains the blast binaries. Leave it empty if they are in the path.";
   private static final String HELP_SEQ_TYPE =
     "The type of the sequences in the database. This is automatically selected based on the blast command to execute.";
+  private static final String HELP_DATABASE_QUERY_MODE =
+    "The mode in which the query should be performed.";
   private static final String HELP_QUERY_SOURCE = "The source of the query sequences.";
   private static final String HELP_BLAST_TYPE = "The blast command to execute.";
   private static final String HELP_DATABASES =
@@ -111,6 +114,7 @@ public class BlastTransformationConfigurationPanel extends JPanel {
   private JButton checkBlastProgramsButton;
   private RadioButtonsPanel<SequenceType> sequenceTypeRbtnPanel;
   private JComboBox<BlastType> blastTypeCombobox;
+  private RadioButtonsPanel<DatabaseQueryMode> databaseQueryModeRadioButtonsPanel;
   private DoubleTextField eValue;
   private JIntegerTextField maxTargetSeqs;
   private JXTextField additionalBlastParameters;
@@ -218,6 +222,9 @@ public class BlastTransformationConfigurationPanel extends JPanel {
     dbParameters.add(getStoreAliasParameter());
     dbParameters.add(getAliasFileParameter());
 
+    this.checkDatabaseFileChooser();
+    this.checkAliasFileChooser();
+
     return dbParameters.toArray(new InputParameter[dbParameters.size()]);
   }
 
@@ -236,18 +243,33 @@ public class BlastTransformationConfigurationPanel extends JPanel {
   }
 
   private InputParameter[] getParameters() {
-    InputParameter[] parameters = new InputParameter[9];
-    parameters[0] = getBlastTypeParameter();
-    parameters[1] = getQueryTypeParameter();
-    parameters[2] = getGenomeQueryParameter();
-    parameters[3] = getFileQueryParameter();
-    parameters[4] = getEvalueParameter();
-    parameters[5] = getMaxTargetSeqsParameter();
-    parameters[6] = getAdditionalBlastParamsParameter();
-    parameters[7] = getExtractOnlyHitRegionsParamsParameter();
-    parameters[8] = getHitRegionsWindowSizeParamsParameter();
+    List<InputParameter> parameters = new LinkedList<InputParameter>();
+    parameters.add(getDatabaseQueryModeParameter());
+    parameters.add(getBlastTypeParameter());
+    parameters.add(getQueryTypeParameter());
+    parameters.add(getGenomeQueryParameter());
+    parameters.add(getFileQueryParameter());
+    parameters.add(getEvalueParameter());
+    parameters.add(getMaxTargetSeqsParameter());
+    parameters.add(getAdditionalBlastParamsParameter());
+    parameters.add(getExtractOnlyHitRegionsParamsParameter());
+    parameters.add(getHitRegionsWindowSizeParamsParameter());
 
-    return parameters;
+    return parameters.toArray(new InputParameter[parameters.size()]);
+  }
+
+  private InputParameter getDatabaseQueryModeParameter() {
+    this.databaseQueryModeRadioButtonsPanel = new RadioButtonsPanel<DatabaseQueryMode>(DatabaseQueryMode.values(), 1, 0);
+    this.databaseQueryModeRadioButtonsPanel.addItemListener(this::databaseQueryModeChanged);
+
+    return new InputParameter("Query against: ", this.databaseQueryModeRadioButtonsPanel, HELP_DATABASE_QUERY_MODE);
+  }
+
+  private void databaseQueryModeChanged(ItemEvent event) {
+    if (event.getStateChange() == ItemEvent.SELECTED) {
+      this.transformationProvider.databaseQueryModeChanged();
+      SwingUtilities.invokeLater(this::checkDatabaseQueryMode);
+    }
   }
 
   private InputParameter getQueryTypeParameter() {
@@ -279,6 +301,12 @@ public class BlastTransformationConfigurationPanel extends JPanel {
     }
   }
 
+  private void checkDatabaseQueryMode() {
+    boolean enabled = this.getDatabaseQueryMode().equals(DatabaseQueryMode.ALL);
+    this.storeAlias.setEnabled(enabled);
+    this.checkAliasFileChooser();
+  }
+
   private void checkQuerySelection() {
     BlastType selectedBlastType = getBlastType();
     boolean disabled = selectedBlastType.equals(BlastType.BLASTX) || selectedBlastType.equals(BlastType.TBLASTN);
@@ -292,6 +320,10 @@ public class BlastTransformationConfigurationPanel extends JPanel {
     return (BlastType) this.blastTypeCombobox.getSelectedItem();
   }
 
+  public DatabaseQueryMode getDatabaseQueryMode() {
+    return this.databaseQueryModeRadioButtonsPanel.getSelectedItem().get();
+  }
+
   private InputParameter getStoreDatabasesParameter() {
     this.storeDatabases = new JCheckBox();
     this.storeDatabases.addItemListener(this::storeDatabasesChanged);
@@ -301,6 +333,12 @@ public class BlastTransformationConfigurationPanel extends JPanel {
 
   private void storeDatabasesChanged(ItemEvent event) {
     this.transformationProvider.storeDatabasesChanged();
+    SwingUtilities.invokeLater(this::checkDatabaseFileChooser);
+  }
+
+  private void checkDatabaseFileChooser() {
+    boolean enabled = this.storeDatabases.isEnabled() && this.storeDatabases.isSelected();
+    this.databasesDirectory.getBrowseAction().setEnabled(enabled);
   }
 
   private InputParameter getStoreAliasParameter() {
@@ -312,6 +350,12 @@ public class BlastTransformationConfigurationPanel extends JPanel {
 
   private void storeAliasChanged(ItemEvent event) {
     this.transformationProvider.storeAliasChanged();
+    SwingUtilities.invokeLater(this::checkAliasFileChooser);
+  }
+
+  private void checkAliasFileChooser() {
+    boolean enabled = this.storeAlias.isSelected() && this.storeAlias.isEnabled();
+    this.aliasFile.getBrowseAction().setEnabled(enabled);
   }
 
   private InputParameter getDatabasesDirectoryParameter() {
@@ -484,15 +528,19 @@ public class BlastTransformationConfigurationPanel extends JPanel {
   }
 
   public boolean isStoreAlias() {
-    return this.storeAlias.isSelected();
+    return this.getDatabaseQueryMode().equals(DatabaseQueryMode.ALL) && this.storeAlias.isSelected();
   }
 
   public File getDatabasesDirectory() {
     return this.databasesDirectory.getSelectedFile();
   }
 
-  public File getAliasFile() {
-    return this.aliasFile.getSelectedFile();
+  public Optional<File> getAliasFile() {
+    if (this.isStoreAlias()) {
+      return Optional.ofNullable(this.aliasFile.getSelectedFile());
+    } else {
+      return Optional.empty();
+    }
   }
 
   private Component getParentForDialogs() {

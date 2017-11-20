@@ -11,10 +11,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.sing_group.seda.blast.BlastBinariesExecutor;
+import org.sing_group.seda.blast.datatype.DatabaseQueryMode;
 import org.sing_group.seda.blast.datatype.SequenceType;
 import org.sing_group.seda.blast.datatype.blast.BlastType;
 import org.sing_group.seda.datatype.DatatypeFactory;
@@ -41,11 +43,12 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
   };
 
 	private BlastBinariesExecutor blastBinariesExecutor;
-	
+
   private final SequenceType databaseType;
   private final BlastType blastType;
+  private final DatabaseQueryMode databaseQueryMode;
   private final File databasesDirectory;
-  private final File aliasFile;
+  private final Optional<File> aliasFile;
   private final double evalue;
   private final int maxTargetSeqs;
   private DatatypeFactory factory;
@@ -56,6 +59,35 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
 
   public BlastTransformation(
     BlastType blastType,
+    DatabaseQueryMode databaseQueryMode,
+    File blastPath,
+    File queryFile,
+    File databasesPath,
+    double evalue,
+    int maxTargetSeqs,
+    boolean extractOnlyHitRegions,
+    int hitRegionsWindowSize,
+    String blastParams,
+    DatatypeFactory factory
+  ) {
+    this(
+      blastType,
+      databaseQueryMode,
+      blastPath, queryFile,
+      databasesPath,
+      null,
+      evalue,
+      maxTargetSeqs,
+      extractOnlyHitRegions,
+      hitRegionsWindowSize,
+      blastParams,
+      factory
+     );
+  }
+
+  public BlastTransformation(
+    BlastType blastType,
+    DatabaseQueryMode databaseQueryMode,
     File blastPath,
     File queryFile,
     File databasesPath,
@@ -68,10 +100,11 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
     DatatypeFactory factory
   ) {
     this.databaseType = blastType.getDatabaseType();
+    this.databaseQueryMode = databaseQueryMode;
     this.blastType = blastType;
     this.blastBinariesExecutor = new BlastBinariesExecutor(blastPath);
     this.databasesDirectory = databasesPath;
-    this.aliasFile = aliasFile;
+    this.aliasFile = Optional.ofNullable(aliasFile);
     this.queryFile = queryFile;
     this.evalue = evalue;
     this.maxTargetSeqs = maxTargetSeqs;
@@ -90,13 +123,38 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
     throws TransformationException {
     requireNonNull(dataset);
 
+   return blast(dataset);
+  }
+
+  private SequencesGroupDataset blast(SequencesGroupDataset dataset) {
+    if (this.databaseQueryMode.equals(DatabaseQueryMode.ALL)) {
+      return factory.newSequencesGroupDataset(getSequenceGroups(blastDataset(dataset, "")));
+    } else {
+      List<File> sequenceResultFiles = new LinkedList<>();
+      for (SequencesGroup group : dataset.getSequencesGroups().collect(Collectors.toList())) {
+        SequencesGroupDataset currentDataset = this.factory.newSequencesGroupDataset(group);
+        sequenceResultFiles.addAll(blastDataset(currentDataset, "_" + group.getName()));
+      }
+
+      return factory.newSequencesGroupDataset(getSequenceGroups(sequenceResultFiles));
+    }
+  }
+
+  private List<File> blastDataset(SequencesGroupDataset dataset, String resultsSuffix) {
     List<File> blastDatabases = Collections.emptyList();
     try {
       blastDatabases = makeBlastDatabases(dataset, this.databasesDirectory);
     } catch (IOException | InterruptedException e) {
       throw new TransformationException("An error occurred while creating the databases");
     }
-  
+
+    File aliasFile;
+    try {
+      aliasFile = this.aliasFile.orElse(Files.createTempFile("seda-blastdb-alias", "").toFile());
+    } catch (IOException e) {
+      throw new TransformationException("An error occurred while creating the alias");
+    }
+
     try {
       makeBlastDatabasesAlias(blastDatabases, aliasFile);
     } catch (IOException | InterruptedException e) {
@@ -111,11 +169,11 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
     }
 
     try {
-      List<File> sequenceResultsFiles = extractSequences(blastResults, aliasFile);
+      List<File> sequenceResultsFiles = extractSequences(blastResults, aliasFile, resultsSuffix);
 
-      return factory.newSequencesGroupDataset(getSequenceGroups(sequenceResultsFiles));
+      return sequenceResultsFiles;
     } catch (InterruptedException | IOException e) {
-      throw new TransformationException("An error occurred while creating the alias");
+      throw new TransformationException("An error occurred while extracting result sequences");
     }
   }
 
@@ -128,22 +186,23 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
     return groups.toArray(new SequencesGroup[groups.size()]);
   }
 
-  private List<File> extractSequences(List<File> blastResults, File aliasFile)
+  private List<File> extractSequences(List<File> blastResults, File aliasFile, String fileSuffix)
     throws InterruptedException, IOException {
     List<File> sequenceFiles = new LinkedList<>();
     for (File blastResult : blastResults) {
       if (this.extractOnlyHitRegions) {
-        sequenceFiles.add(extractOnlyHitRegionsAsSequences(blastResult, aliasFile));
+        sequenceFiles.add(extractOnlyHitRegionsAsSequences(blastResult, aliasFile, fileSuffix));
       } else {
-        sequenceFiles.add(extractBatchSequences(blastResult, aliasFile));
+        sequenceFiles.add(extractBatchSequences(blastResult, aliasFile, fileSuffix));
       }
     }
 
     return sequenceFiles;
   }
 
-  private File extractBatchSequences(File blastResult, File aliasFile) throws InterruptedException, IOException {
-    File sequencesFile = new File(blastResult.getParentFile(), blastResult.getName() + ".sequences");
+  private File extractBatchSequences(File blastResult, File aliasFile, String fileSuffix)
+    throws InterruptedException, IOException {
+    File sequencesFile = new File(blastResult.getParentFile(), blastResult.getName().replace(".out", "") + fileSuffix + ".sequences");
     File blastSubjectList = extractSubjectList(blastResult);
 
     this.blastBinariesExecutor.blastDbCmd(aliasFile, blastSubjectList, sequencesFile);
@@ -166,12 +225,12 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
     return blastSubjectList;
   }
 
-  private File extractOnlyHitRegionsAsSequences(File blastResult, File aliasFile)
+  private File extractOnlyHitRegionsAsSequences(File blastResult, File aliasFile, String fileSuffix)
     throws InterruptedException, IOException {
     List<BlastFormat6Hit> blastHits = extractBlastHits(blastResult);
 
     List<Sequence> sequences = new LinkedList<>();
-    File sequencesFile = new File(blastResult.getParentFile(), blastResult.getName() + ".sequences");
+    File sequencesFile = new File(blastResult.getParentFile(), blastResult.getName().replace(".out", "") + fileSuffix + ".sequences");
 
     DefaultDatatypeFactory temporaryDatatypeFactory = new DefaultDatatypeFactory();
 

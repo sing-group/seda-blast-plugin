@@ -3,13 +3,16 @@ package org.sing_group.seda.blast.transformation.dataset;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Optional;
 
+import org.sing_group.seda.blast.datatype.DatabaseQueryMode;
 import org.sing_group.seda.blast.datatype.blast.BlastType;
 import org.sing_group.seda.datatype.DatatypeFactory;
 import org.sing_group.seda.transformation.TransformationException;
 
 public class BlastTransformationBuilder {
   private BlastType blastType;
+  private DatabaseQueryMode databaseQueryMode;
   private File queryFile;
   private double eValue = BlastTransformation.DEFAULT_EVALUE;
   private int maxTargetSeqs = BlastTransformation.DEFAULT_MAX_TARGET_SEQS;
@@ -21,9 +24,10 @@ public class BlastTransformationBuilder {
   private boolean extractOnlyHitRegions = BlastTransformation.DEFAULT_EXTRACT_ONLY_HIT_REGIONS;
   private int hitRegionsWindowSize = BlastTransformation.DEFAULT_HIT_REGIONS_WINDOW_SIZE;
 
-  public BlastTransformationBuilder(BlastType blastType, File queryFile) {
+  public BlastTransformationBuilder(BlastType blastType, File queryFile, DatabaseQueryMode databaseQueryMode) {
     this.blastType = blastType;
     this.queryFile = queryFile;
+    this.databaseQueryMode = databaseQueryMode;
   }
 
   public BlastTransformationBuilder withEvalue(double eValue) {
@@ -73,13 +77,26 @@ public class BlastTransformationBuilder {
 
   public BlastTransformation build() {
     try {
-      return new BlastTransformation(
-        blastType,
-        blastPath, queryFile, getDatabasesDirectory(), getAliasFile(),
-        eValue, maxTargetSeqs,
-        extractOnlyHitRegions, hitRegionsWindowSize,
-        blastAdditionalParameters, factory
-      );
+      if(getAliasFile().isPresent()) {
+        return new BlastTransformation(
+          blastType, databaseQueryMode,
+          blastPath, queryFile,
+          getDatabasesDirectory(),
+          getAliasFile().get(),
+          eValue, maxTargetSeqs,
+          extractOnlyHitRegions, hitRegionsWindowSize,
+          blastAdditionalParameters, factory
+        );
+      } else {
+        return new BlastTransformation(
+          blastType, databaseQueryMode,
+          blastPath, queryFile,
+          getDatabasesDirectory(),
+          eValue, maxTargetSeqs,
+          extractOnlyHitRegions, hitRegionsWindowSize,
+          blastAdditionalParameters, factory
+        );
+      }
     } catch (IOException e) {
       throw new TransformationException(e);
     }
@@ -91,9 +108,7 @@ public class BlastTransformationBuilder {
       : this.databasesDirectory;
   }
 
-  private File getAliasFile() throws IOException {
-    return this.aliasFile == null
-      ? Files.createTempFile("seda-blastdb-alias", "").toFile()
-      : this.aliasFile;
+  private Optional<File> getAliasFile() throws IOException {
+    return Optional.ofNullable(this.aliasFile);
   }
 }

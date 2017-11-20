@@ -13,12 +13,17 @@ public class BlastBinariesChecker {
 
   public static void checkBlastPath(File path) throws BinaryCheckException {
     checkMakeBlastDb(path);
+    checkBlastDbCmd(path);
     checkBlastDbAliasTool(path);
     checkBlastCommands(path);
   }
 
   private static void checkMakeBlastDb(File path) throws BinaryCheckException {
     checkCommand(composeBlastCommand(path, BlastEnvironment.getInstance().getMakeBlastDbCommand()));
+  }
+
+  private static void checkBlastDbCmd(File path) throws BinaryCheckException {
+    checkCommand(composeBlastCommand(path, BlastEnvironment.getInstance().getBlastDbCmdCommand()));
   }
 
   private static void checkBlastDbAliasTool(File path) throws BinaryCheckException {
