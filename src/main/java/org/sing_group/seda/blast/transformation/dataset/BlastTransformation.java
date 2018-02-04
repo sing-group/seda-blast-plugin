@@ -73,7 +73,8 @@ public class BlastTransformation implements SequencesGroupDatasetTransformation 
     this(
       blastType,
       databaseQueryMode,
-      blastPath, queryFile,
+      blastPath,
+      queryFile,
       databasesPath,
       null,
       evalue,
