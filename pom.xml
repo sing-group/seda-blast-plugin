@@ -4,10 +4,37 @@
 
   <groupId>org.sing_group</groupId>
   <artifactId>seda-blast-plugin</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
   <packaging>jar</packaging>
 
-  <name>Sequence Datasets - BLAST plugin</name>
+  <name>SEquence DAtaset builder</name>
+  <inceptionYear>2017</inceptionYear>
+
+  <developers>
+    <developer>
+      <name>Miguel Reboiro-Jato</name>
+      <organization>SING Group - University of Vigo</organization>
+      <organizationUrl>http://www.sing-group.org/</organizationUrl>
+      <email>mrjato@uvigo.es</email>
+    </developer>
+    <developer>
+      <name>Hugo López-Fernández</name>
+      <organization>SING Group - University of Vigo</organization>
+      <organizationUrl>http://www.sing-group.org/</organizationUrl>
+      <email>hlfernandez@uvigo.es</email>
+    </developer>
+    </developers>
+  <contributors>
+    <contributor>
+      <name>Jorge Vieira</name>
+      <organization>Instituto de Biologia Molecular e Celular, Universidade do Porto</organization>
+      <organizationUrl>http://evolution.ibmc.up.pt/</organizationUrl>
+      <email>jbvieira@ibmc.up.pt</email>
+      <roles>
+        <role>Principal Investigator</role>
+      </roles>
+    </contributor>
+  </contributors>
 
   <properties>
     <!-- General configuration -->
@@ -18,13 +45,20 @@
 
     <!-- Dependencies -->
     <yaacli.version>0.1.0-SNAPSHOT</yaacli.version>
-    <seda.version>0.1.0</seda.version>
+    <seda.version>0.1.1</seda.version>
 
     <!-- Plugins -->
     <maven-assembly-plugin.version>3.0.0</maven-assembly-plugin.version>
     <maven-jar-plugin.version>3.0.2</maven-jar-plugin.version>
     <maven-javadoc-plugin.version>2.10.4</maven-javadoc-plugin.version>
     <maven-source-plugin.version>3.0.1</maven-source-plugin.version>
+    <license-maven-plugin.version>1.8</license-maven-plugin.version>
+
+    <!-- License configuration -->
+    <license.licenseName>gpl_v3</license.licenseName>
+    <license.copyrightOwners>Jorge Vieira, Miguel Reboiro-Jato and Hugo López-Fernández</license.copyrightOwners>
+    <license.organizationName>SING Group (University of Vigo)</license.organizationName>
+    <license.addJavaLicenseAfterPackage>false</license.addJavaLicenseAfterPackage>
   </properties>
 
   <licenses>
@@ -81,4 +115,23 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>license-maven-plugin</artifactId>
+        <version>${license-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>first</id>
+            <goals>
+              <goal>update-file-header</goal>
+            </goals>
+            <phase>process-sources</phase>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
